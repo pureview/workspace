@@ -1,6 +1,8 @@
 import os
 import pickle
-
+import log_analysis.cluster_tool
+import matplotlib.pyplot as plt
+import log_analysis.plot_mat
 '''
 @author: zhou honggang
 @diary(2017/5/23):
@@ -20,7 +22,14 @@ import pickle
     2.cpu使用率用mpstat的第二列数据，
       IO使用率用iostat最后一列数据，
       网络使用率用sar的（第三列加第四列）/1000
-    
+@cluster:
+    (2017/5/25)
+    1. 分成3类
+     centers: [[  5.12499083e-01   9.76179435e-01   6.53056195e-04]
+        [  1.06931896e+00   1.01326743e+00   4.63918748e+00]
+        [  2.43434292e+00   1.05895691e+00   1.32923629e-03]]
+     inertia_: 1670.95733984
+     2. 
 '''
 
 class Task(object):
@@ -123,9 +132,9 @@ def analysis_features(tasks,stages):
                 if task_duration/stage_duration>=threshold:
                     stragglers[task_id]=tasks[task_id]
         print('find %d stragglers'%(len(stragglers)))
-        for k in stragglers:
-            print('straggler:',stragglers[k])
-            break
+        # for k in stragglers:
+        #     print('straggler:',stragglers[k])
+        #     break
         return stragglers
 
     def init_feature(feature):
@@ -351,7 +360,7 @@ def analysis_features(tasks,stages):
         node_feature['memory_bytes_spilled']=memory_bytes_spilled
         node_feature['disk_bytes_spilled']=disk_bytes_spilled
         node_features[node_id]=node_feature
-    return features,node_features
+    return features,node_features,stragglers
 
 def read_hardware_log(filename,timestamp=0,features=[]):
     with open(filename) as log:
@@ -360,14 +369,31 @@ def read_hardware_log(filename,timestamp=0,features=[]):
             line=log.readline()
             if not line:
                 break
-            values=[int(value) for value in line.split()]
+            values=[float(value) for value in line.split()]
             rt.append([values[index] for index in [timestamp,*features]])
+    assert len(rt[0])>=2,'hardware feature fault: '+str(rt[0])
     return rt
 
-def expand_tasks(tasks,features,name):
-    pass
+def expand_tasks(tasks,features,name,timestamp,extracted_features,delay=2000):
+    # Note: features is refered to hardware features
+    for task_id in tasks:
+        task=tasks[task_id]
+        task_start=task['Task Info']['Launch Time']
+        task_finish=task['Task Info']['Finish Time']
+        slave_index=int(task['Task Info']['Host'][-1])-1
+        temp_sum=0
+        # NOTE: here I include start point and end point
+        start_id=int((task_start-timestamp)/1000-2)
+        end_id=int((task_finish-timestamp)/1000-2)
+        assert end_id>=start_id
+        for i in range(start_id,end_id+1):
+            temp_sum+=features[slave_index][i][1]
+        avg=temp_sum/(end_id-start_id+1)
+        task[name]=avg
+        extracted_features[task_id][name]=avg
 
-def wraper(tasks):
+def wraper(tasks,start_time,extracted_features):
+    # WARN: tasks need to be raw tasks
     # get iostat
     io_files=['data/out/iostat_out_slave1','data/out/iostat_out_slave2',
               'data/out/iostat_out_slave3','data/out/iostat_out_slave4',
@@ -376,23 +402,72 @@ def wraper(tasks):
     io_features=[]
     for file_id in range(len(io_files)):
         io_features.append(read_hardware_log(io_files[file_id],features=[-1]))
-    expand_tasks(tasks,io_features,'io')
+    expand_tasks(tasks,io_features,'io',start_time,extracted_features)
+
+    # cpu_features
+    cpu_files=['data/out/mpstat_out_slave1','data/out/mpstat_out_slave2',
+               'data/out/mpstat_out_slave3','data/out/mpstat_out_slave4',
+               'data/out/mpstat_out_slave5']
+    cpu_features=[]
+    for file_id in range(len(cpu_files)):
+        cpu_features.append(read_hardware_log(cpu_files[file_id],features=[1]))
+    expand_tasks(tasks,cpu_features,'cpu',start_time,extracted_features)
+
+    # net_features
+    net_files=['data/out/sar_out_slave1','data/out/sar_out_slave2',
+              'data/out/sar_out_slave3','data/out/sar_out_slave4',
+              'data/out/sar_out_slave5']
+    net_features=[]
+    for file_id in range(len(net_files)):
+        raw=read_hardware_log(net_files[file_id], features=[2,3])
+        net_features.append([[row[0],(row[1]+row[2])/1000] for row in raw])
+    expand_tasks(tasks, net_features, 'net', start_time, extracted_features)
+
+def visualize(features):
+    for task_id in features:
+        feature = features[task_id]
+        for k in feature:
+            v = feature[k]
+            print(k, '->', v)
+        break
+
+def regulize(mat,thresh=0.002):
+    # WARN: mat is a 2-d list
+    row_num=len(mat)
+    col_num=len(mat[0])
+    sum_list=[0]*col_num
+    for row in mat:
+        for i in range(col_num):
+            sum_list[i]+=row[i]/row_num
+    for i in range(row_num):
+        for j in range(col_num):
+            # if mat[i][j]>thresh*row_num*sum_list[j]:
+            #     print('weired! ',j,mat[i][j])
+            mat[i][j]/=sum_list[j]
 
 if __name__ == '__main__':
-    _,tasks,stages=load_dicts()
-    features,node_features=analysis_features(tasks,stages)
-    for task_id in features:
-        feature=features[task_id]
-        for k in feature:
-            v=feature[k]
-            print(k,'->',v)
-        break
-    print('\nnode features:\n')
-    for node_id in node_features:
-        node_feature=node_features[node_id]
-        for k in node_feature:
-            v=node_feature[k]
-            print('{} -> {}:'.format(k,v))
-        #print()
-        break
-    # load_dicts()
+    # this step save cal time but hurt debug
+    # if os.path.exists('stragglers.dat'):
+    #     stragglers,features,tasks=pickle.load(open('straggles.dat','wb'))
+    # else:
+    #     start_time, tasks, stages = load_dicts()
+    #     # Note: stragglers -> task_id : task
+    #     features, node_features, stragglers = analysis_features(tasks, stages)
+    #     wraper(tasks, start_time, features)
+    #     pickle.dump([stragglers,features,tasks],open('straggles.dat','wb'))
+    start_time, tasks, stages = load_dicts()
+    # Note: stragglers -> task_id : task
+    features, node_features, stragglers = analysis_features(tasks, stages)
+    wraper(tasks, start_time, features)
+    # get straggler hardware features
+    feature_names=['io','cpu','net']
+    mat=[]
+    for k in stragglers:
+        task=stragglers[k]
+        t=[]
+        for name in feature_names:
+            t.append(task[name])
+        mat.append(t)
+    regulize(mat)
+    log_analysis.plot_mat.plot(mat)
+    #log_analysis.cluster_tool.cluster(mat)
