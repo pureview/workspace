@@ -1,0 +1,9 @@
+S=13
+coords=4
+object_scale=1.0
+noobject_scale=1.0
+class_scale=1.0
+coord_scale=5.0
+input_W=416
+input_H=416
+input_C=1

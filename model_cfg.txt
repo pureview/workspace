@@ -1,0 +1,15 @@
+layertype=0 filters=4 ksize=3 stride=1 pad=1
+layertype=0 filters=8 ksize=3 stride=1 pad=1
+layertype=0 filters=8 ksize=3 stride=1 pad=1
+layertype=1 filters=0 ksize=2 stride=2 pad=0
+layertype=0 filters=16 ksize=3 stride=1 pad=1
+layertype=1 filters=0 ksize=2 stride=2 pad=0
+layertype=0 filters=32 ksize=3 stride=1 pad=1
+layertype=1 filters=0 ksize=2 stride=2 pad=0
+layertype=0 filters=64 ksize=3 stride=1 pad=1
+layertype=1 filters=0 ksize=2 stride=2 pad=0
+layertype=0 filters=128 ksize=3 stride=1 pad=1
+layertype=0 filters=64 ksize=3 stride=1 pad=1
+layertype=0 filters=32 ksize=3 stride=1 pad=1
+layertype=0 filters=16 ksize=3 stride=1 pad=1
+layertype=0 filters=6 ksize=3 stride=1 pad=1
