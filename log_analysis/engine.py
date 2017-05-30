@@ -5,17 +5,23 @@ import matplotlib.pyplot as plt
 import log_analysis.plot_mat
 '''
 @author: zhou honggang
-@diary(2017/5/23):
+@diary:
+    (2017/5/23)
     1. duration is millisecond
     2. ``(该node straggler的平均read bytes/read record) /stage平均水平`` 未计算
     3. node 所有数据未归一化
+    （2017/5/30)
+    1. modify wraper() to get CPU and IO info from mpstat
+    2. modify feed() to set start timestamp to job start time
+    3. set file name through configure
+    4. let analysis start all over every time
 @bug:
     1. straggler对象应该是原始对象√
     2. node节点统计量错误
     （2017/5/24)
 @todo:
     (2017/5/24)
-    1. 分析硬件信息
+    1. 分析硬件信息√
 @note:
     (2017/5/24)
     1. 硬件相对时间比spark日志开始时间早2s
@@ -29,12 +35,10 @@ import log_analysis.plot_mat
         [  1.06931896e+00   1.01326743e+00   4.63918748e+00]
         [  2.43434292e+00   1.05895691e+00   1.32923629e-03]]
      inertia_: 1670.95733984
-     2. 
 '''
-
-class Task(object):
-    def __init__(self,task_id):
-        self.task_id=task_id
+# ============== CONFIGURE ==================
+DELAY=12
+LOG_DIR='data/bayes-1000/'
 
 def feed(filename='data/log'):
     # tasks: task_id -> task
@@ -62,10 +66,10 @@ def feed(filename='data/log'):
                 tasks[event['Task Info']['Task ID']]=event
             elif event['Event']=='SparkListenerStageCompleted':
                 stages[event['Stage Info']['Stage ID']]=event
-            elif event['Event']=='SparkListenerApplicationStart' and application_start_flag:
+            elif event['Event']=='SparkListenerJobStart' and application_start_flag:
                 application_start_flag=False
                 # note that start_time_stamp is int variable
-                start_time_stamp=event['Timestamp']
+                start_time_stamp=event['Submission Time']
     print('log analysis finished!\n\tfind %d tasks, %d stages, application started at %d'%(
           len(tasks),len(stages),start_time_stamp))
     return start_time_stamp,tasks, stages
@@ -77,14 +81,22 @@ def catch_exception(expression,default=0):
         return default
 
 def load_dicts(dump_file_name='saved_raw_features'):
-    if os.path.exists(dump_file_name):
-        with open(dump_file_name,'rb') as dump_file:
-            return pickle.load(dump_file)
-    else:
-        start_time_stamp,tasks,stages=feed()
-        with open(dump_file_name,'wb') as dump_file:
-            pickle.dump((start_time_stamp,tasks,stages),dump_file)
-        return start_time_stamp,tasks,stages
+    for i in os.listdir(LOG_DIR):
+        if os.path.isfile(LOG_DIR + i):
+            log_file = LOG_DIR + i
+    start_time_stamp, tasks, stages = feed(log_file)
+    return start_time_stamp, tasks, stages
+    # if os.path.exists(dump_file_name):
+    #     with open(dump_file_name,'rb') as dump_file:
+    #         return pickle.load(dump_file)
+    # else:
+    #     for i in os.listdir(LOG_DIR):
+    #         if os.path.isfile(LOG_DIR+i):
+    #             log_file=LOG_DIR+i
+    #     start_time_stamp,tasks,stages=feed(log_file)
+    #     with open(dump_file_name,'wb') as dump_file:
+    #         pickle.dump((start_time_stamp,tasks,stages),dump_file)
+    #     return start_time_stamp,tasks,stages
 def analysis_features(tasks,stages):
     def cal_stage_data_read(tasks,stages):
         for stage_id in stages.keys():
@@ -207,7 +219,7 @@ def analysis_features(tasks,stages):
                 stages[task['Stage ID']]['bytes_read']
             feature['records_read']=task['Task Metrics']['Input Metrics']['Records Read']/\
                 stages[task['Stage ID']]['records_read']
-            if task['Task Metrics']['Input Metrics']['Bytes Read']/\
+            if task['Task Metrics']['Result Size']>0 and task['Task Metrics']['Input Metrics']['Bytes Read']/\
                 task['Task Metrics']['Result Size']>1:
                 feature['input_bytes/result_bytes']=1
         if 'Shuffle Read Metrics' in task['Task Metrics'].keys():
@@ -383,40 +395,50 @@ def expand_tasks(tasks,features,name,timestamp,extracted_features,delay=2000):
         slave_index=int(task['Task Info']['Host'][-1])-1
         temp_sum=0
         # NOTE: here I include start point and end point
-        start_id=int((task_start-timestamp)/1000-2)
-        end_id=int((task_finish-timestamp)/1000-2)
+        start_id=int((task_start-timestamp)/1000-DELAY)
+        end_id=int((task_finish-timestamp)/1000-DELAY)
         assert end_id>=start_id
         for i in range(start_id,end_id+1):
-            temp_sum+=features[slave_index][i][1]
+            try:
+                temp_sum+=features[slave_index][i][1]
+            except:
+                continue
         avg=temp_sum/(end_id-start_id+1)
         task[name]=avg
         extracted_features[task_id][name]=avg
 
 def wraper(tasks,start_time,extracted_features):
     # WARN: tasks need to be raw tasks
+    #'''
     # get iostat
-    io_files=['data/out/iostat_out_slave1','data/out/iostat_out_slave2',
-              'data/out/iostat_out_slave3','data/out/iostat_out_slave4',
-              'data/out/iostat_out_slave5']
+    io_files=[LOG_DIR+'out/iostat_out_slave1',LOG_DIR+'out/iostat_out_slave2',
+              LOG_DIR+'out/iostat_out_slave3',LOG_DIR+'out/iostat_out_slave4',
+              LOG_DIR+'out/iostat_out_slave5']
     # io_features: [slave_id [[timestamp,value] ... ] ...]
     io_features=[]
     for file_id in range(len(io_files)):
         io_features.append(read_hardware_log(io_files[file_id],features=[-1]))
     expand_tasks(tasks,io_features,'io',start_time,extracted_features)
-
+    #'''
     # cpu_features
-    cpu_files=['data/out/mpstat_out_slave1','data/out/mpstat_out_slave2',
-               'data/out/mpstat_out_slave3','data/out/mpstat_out_slave4',
-               'data/out/mpstat_out_slave5']
+    cpu_files=[LOG_DIR+'out/mpstat_out_slave1',LOG_DIR+'out/mpstat_out_slave2',
+               LOG_DIR+'out/mpstat_out_slave3',LOG_DIR+'out/mpstat_out_slave4',
+               LOG_DIR+'out/mpstat_out_slave5']
     cpu_features=[]
     for file_id in range(len(cpu_files)):
         cpu_features.append(read_hardware_log(cpu_files[file_id],features=[1]))
+        # io_t=[]
+        # cpu_t=[]
+        # for item in rt:
+        #     io_t.append([item[0],item[1]])
+        #     cpu_t.append([item[0],item[1]])
+        # io_features.append(io_t)
+        # cpu_features.append(cpu_t)
     expand_tasks(tasks,cpu_features,'cpu',start_time,extracted_features)
-
     # net_features
-    net_files=['data/out/sar_out_slave1','data/out/sar_out_slave2',
-              'data/out/sar_out_slave3','data/out/sar_out_slave4',
-              'data/out/sar_out_slave5']
+    net_files=[LOG_DIR+'out/sar_out_slave1',LOG_DIR+'out/sar_out_slave2',
+              LOG_DIR+'out/sar_out_slave3',LOG_DIR+'out/sar_out_slave4',
+              LOG_DIR+'out/sar_out_slave5']
     net_features=[]
     for file_id in range(len(net_files)):
         raw=read_hardware_log(net_files[file_id], features=[2,3])
@@ -455,6 +477,29 @@ if __name__ == '__main__':
     #     features, node_features, stragglers = analysis_features(tasks, stages)
     #     wraper(tasks, start_time, features)
     #     pickle.dump([stragglers,features,tasks],open('straggles.dat','wb'))
+    mat=[]
+    for workload in os.listdir('data'):
+        LOG_DIR='data/'+workload+'/'
+        if 'kmeans' in workload or 'nweight' in workload:
+            DELAY=13
+        else:
+            DELAY=12
+        start_time, tasks, stages = load_dicts()
+        # Note: stragglers -> task_id : task
+        features, node_features, stragglers = analysis_features(tasks, stages)
+        wraper(tasks, start_time, features)
+        # get straggler hardware features
+        feature_names = ['io', 'cpu', 'net']
+        #mat = []
+        for k in stragglers:
+            task = stragglers[k]
+            t = []
+            for name in feature_names:
+                t.append(task[name])
+            mat.append(t)
+    #log_analysis.plot_mat.plot(mat,feature_names)
+    pickle.dump(mat,open('dump-hardware-features.dat','wb'))
+    exit(0)
     start_time, tasks, stages = load_dicts()
     # Note: stragglers -> task_id : task
     features, node_features, stragglers = analysis_features(tasks, stages)
@@ -469,5 +514,5 @@ if __name__ == '__main__':
             t.append(task[name])
         mat.append(t)
     regulize(mat)
-    log_analysis.plot_mat.plot(mat)
+    log_analysis.plot_mat.plot(mat,feature_names)
     #log_analysis.cluster_tool.cluster(mat)
