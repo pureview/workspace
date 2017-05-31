@@ -3,6 +3,7 @@ import pickle
 import log_analysis.cluster_tool
 import matplotlib.pyplot as plt
 import log_analysis.plot_mat
+import log_analysis.decision_tree
 '''
 @author: zhou honggang
 @diary:
@@ -15,6 +16,7 @@ import log_analysis.plot_mat
     2. modify feed() to set start timestamp to job start time
     3. set file name through configure
     4. let analysis start all over every time
+    5. get all features together and deal them with decision tree
 @bug:
     1. straggler对象应该是原始对象√
     2. node节点统计量错误
@@ -133,7 +135,7 @@ def analysis_features(tasks,stages):
                 stages[task['Stage ID']]['records_wrote']+=task['Task Metrics']['Shuffle Write Metrics']['Shuffle Records Written']
                 stages[task['Stage ID']]['write_bytes_per_record_sum'] += task['Task Metrics']['Shuffle Write Metrics']['Shuffle Bytes Written'] / \
                                                                     task['Task Metrics']['Shuffle Write Metrics']['Shuffle Records Written']
-    def find_straggler(tasks,stages,threshold=0.7):
+    def find_straggler(tasks,stages,features,threshold=0.7):
         # straggler->task_duration/stage_duration>threshold
         stragglers={}
         for stage_id in stages:
@@ -143,12 +145,12 @@ def analysis_features(tasks,stages):
                 task_duration=task['Task Info']['Finish Time']-task['Task Info']['Launch Time']
                 if task_duration/stage_duration>=threshold:
                     stragglers[task_id]=tasks[task_id]
+                    features[task_id]['straggler']=1
         print('find %d stragglers'%(len(stragglers)))
         # for k in stragglers:
         #     print('straggler:',stragglers[k])
         #     break
         return stragglers
-
     def init_feature(feature):
         feature['shuffle_read'] = 0
         feature['shuffle_records'] = 0
@@ -157,7 +159,7 @@ def analysis_features(tasks,stages):
         feature['remote_fetch_rate'] = 0
         feature['shuffle_write'] = 0
         feature['shuffle_write_bytes'] = 0
-        feature['stage_id'] = task['Stage ID']
+        feature['stage_id'] = 0
         feature['read_from_hdfs'] = 0
         feature['data_read_method'] = 0
         feature['bytes_read'] = 0
@@ -171,6 +173,21 @@ def analysis_features(tasks,stages):
         feature['data_read_method'] = 0
         feature['input_bytes/result_bytes'] = 0
         feature['shuffle_write_records']=0
+        feature['straggler'] = 0
+        feature['node_id'] =0
+        feature['task_type'] = 0
+        feature['task_duration'] =0
+        feature['shuffle_read_bytes'] = 0
+        feature['write_bytes_per_record'] =0
+        feature['write_bytes/read_bytes'] =0
+        feature['deserialize']=0
+        feature['executor_run_ime'] = 0
+        feature['JVM_time'] = 0
+        feature['serialize'] = 0
+        feature['memory_bytes_spilled']=0
+        feature['disk_bytes_spilled'] = 0
+        feature['locality']=0
+
     def value2bit(value,border=1):
         if value>border:
             return 1
@@ -194,7 +211,6 @@ def analysis_features(tasks,stages):
 
     features={}
     cal_stage_data_read(tasks,stages)
-
     for task_id in tasks:
         task=tasks[task_id]
         feature={}
@@ -283,7 +299,7 @@ def analysis_features(tasks,stages):
         all_bytes+=stage['bytes_read']
         all_records+=stage['records_read']
     '''
-    stragglers=find_straggler(tasks,stages)
+    stragglers=find_straggler(tasks,stages,features)
     nodes=cal_nodes(stragglers)
     for node_id in nodes:
         ids=nodes[node_id]
@@ -467,6 +483,11 @@ def regulize(mat,thresh=0.002):
             #     print('weired! ',j,mat[i][j])
             mat[i][j]/=sum_list[j]
 
+def clean(features_val):
+    if feature_values==[0,1]:
+        # binary data
+        pass
+
 if __name__ == '__main__':
     # this step save cal time but hurt debug
     # if os.path.exists('stragglers.dat'):
@@ -477,7 +498,10 @@ if __name__ == '__main__':
     #     features, node_features, stragglers = analysis_features(tasks, stages)
     #     wraper(tasks, start_time, features)
     #     pickle.dump([stragglers,features,tasks],open('straggles.dat','wb'))
-    mat=[]
+    dataset=[]
+    keys=[]
+    labels=[]
+    flag_key=True
     for workload in os.listdir('data'):
         LOG_DIR='data/'+workload+'/'
         if 'kmeans' in workload or 'nweight' in workload:
@@ -489,30 +513,25 @@ if __name__ == '__main__':
         features, node_features, stragglers = analysis_features(tasks, stages)
         wraper(tasks, start_time, features)
         # get straggler hardware features
-        feature_names = ['io', 'cpu', 'net']
-        #mat = []
-        for k in stragglers:
-            task = stragglers[k]
-            t = []
-            for name in feature_names:
-                t.append(task[name])
-            mat.append(t)
-    #log_analysis.plot_mat.plot(mat,feature_names)
-    pickle.dump(mat,open('dump-hardware-features.dat','wb'))
-    exit(0)
-    start_time, tasks, stages = load_dicts()
-    # Note: stragglers -> task_id : task
-    features, node_features, stragglers = analysis_features(tasks, stages)
-    wraper(tasks, start_time, features)
-    # get straggler hardware features
-    feature_names=['io','cpu','net']
-    mat=[]
-    for k in stragglers:
-        task=stragglers[k]
-        t=[]
-        for name in feature_names:
-            t.append(task[name])
-        mat.append(t)
-    regulize(mat)
-    log_analysis.plot_mat.plot(mat,feature_names)
-    #log_analysis.cluster_tool.cluster(mat)
+        # ----------------- Here features include everything ----------------------
+        for task_id in features:
+            feature_=features[task_id].copy()
+            label=feature_.pop('straggler')
+            labels.append(label)
+            row=[]
+            for key in feature_:
+                if flag_key:
+                    keys.append(key)
+                row.append(feature_[key])
+            flag_key=False
+            dataset.append(row)
+    accuracy,precision,recall=log_analysis.decision_tree.build_tree(dataset,labels,keys)
+    print('accuracy,precision,recall=',accuracy,precision,recall)
+    exit()
+    # clean dataset
+    feature_values={}
+    for key in dataset[0][0]:
+        feature_values[key]=[]
+        for piece in dataset:
+            piece=piece[0]
+            feature_values.append(piece[key])

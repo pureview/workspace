@@ -1,0 +1,44 @@
+from engine.main() -- calculate hardware info
+-----------------------------------------------
+ mat=[]
+    for workload in os.listdir('data'):
+        LOG_DIR='data/'+workload+'/'
+        if 'kmeans' in workload or 'nweight' in workload:
+            DELAY=13
+        else:
+            DELAY=12
+        start_time, tasks, stages = load_dicts()
+        # Note: stragglers -> task_id : task
+        features, node_features, stragglers = analysis_features(tasks, stages)
+        wraper(tasks, start_time, features)
+        # get straggler hardware features
+        feature_names = ['io', 'cpu', 'net']
+        #mat = []
+        for k in stragglers:
+            task = stragglers[k]
+            t = []
+            for name in feature_names:
+                t.append(task[name])
+            mat.append(t)
+    #log_analysis.plot_mat.plot(mat,feature_names)
+    pickle.dump(mat,open('dump-hardware-features.dat','wb'))
+    exit(0)
+
+from engine.main() -- cal hardware feature for one workload
+---------------------------------------------------------------
+ start_time, tasks, stages = load_dicts()
+    # Note: stragglers -> task_id : task
+    features, node_features, stragglers = analysis_features(tasks, stages)
+    wraper(tasks, start_time, features)
+    # get straggler hardware features
+    feature_names=['io','cpu','net']
+    mat=[]
+    for k in stragglers:
+        task=stragglers[k]
+        t=[]
+        for name in feature_names:
+            t.append(task[name])
+        mat.append(t)
+    regulize(mat)
+    log_analysis.plot_mat.plot(mat,feature_names)
+    #log_analysis.cluster_tool.cluster(mat)
