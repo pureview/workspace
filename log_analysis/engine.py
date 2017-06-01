@@ -231,9 +231,9 @@ def analysis_features(tasks,stages):
             # Hadoop -> 1, Memory -> 0, Not Exist -> -1
             if task['Task Metrics']['Input Metrics']['Data Read Method']=='Hadoop':
                 feature['data_read_method']=1
-            feature['bytes_read']=task['Task Metrics']['Input Metrics']['Bytes Read']/\
+            feature['bytes_read']=len(stages[task['Stage ID']]['tasks'])*task['Task Metrics']['Input Metrics']['Bytes Read']/\
                 stages[task['Stage ID']]['bytes_read']
-            feature['records_read']=task['Task Metrics']['Input Metrics']['Records Read']/\
+            feature['records_read']=len(stages[task['Stage ID']]['tasks'])*task['Task Metrics']['Input Metrics']['Records Read']/\
                 stages[task['Stage ID']]['records_read']
             if task['Task Metrics']['Result Size']>0 and task['Task Metrics']['Input Metrics']['Bytes Read']/\
                 task['Task Metrics']['Result Size']>1:
@@ -241,12 +241,13 @@ def analysis_features(tasks,stages):
         if 'Shuffle Read Metrics' in task['Task Metrics'].keys():
             feature['shuffle_read']=1
             try:
-                feature['shuffle_read_bytes']=task['Task Metrics']['Shuffle Read Metrics']['Remote Bytes Read']/\
+                feature['shuffle_read_bytes']=len(stages[task['Stage ID']]['tasks'])*（task['Task Metrics']['Shuffle Read Metrics']['Remote Bytes Read']+\
+                    task['Task Metrics']['Shuffle Read Metrics']['Local Bytes Read']）/\
                     stages[task['Stage ID']]['shuffle_read']
             except:
                 feature['shuffle_read_bytes']=0
             try:
-                feature['shuffle_records'] = task['Task Metrics']['Shuffle Read Metrics']['Total Records Read'] / \
+                feature['shuffle_records'] = len(stages[task['Stage ID']]['tasks'])*task['Task Metrics']['Shuffle Read Metrics']['Total Records Read'] / \
                                           stages[task['Stage ID']]['shuffle_records']
             except:
                 feature['shuffle_records'] = 0
@@ -261,7 +262,8 @@ def analysis_features(tasks,stages):
                 # todo: maybe errors
                 feature['remote_fetch_rate']=task['Task Metrics']['Shuffle Read Metrics']['Remote Bytes Fetched']/\
                     feature['bytes_read']
-                feature['fetch_wait_time']=task['Task Metrics']['Shuffle Read Metrics']['Fetch Wait Time']
+                feature['fetch_wait_time']=task['Task Metrics']['Shuffle Read Metrics']['Fetch Wait Time']/\
+                    feature['task_duration']
 
         if 'Shuffle Write Metrics' in task['Task Metrics'].keys():
             feature['shuffle_write']=1
@@ -517,6 +519,20 @@ if __name__ == '__main__':
         for task_id in features:
             feature_=features[task_id].copy()
             label=feature_.pop('straggler')
+        # ----------------- Remove some features for test data 6.1 ----------------    
+            feature_.pop('node_id')
+            feature_.pop('task_type')
+            feature_.pop('task_duration')
+            feature_.pop('read_from_hdfs')
+            feature_.pop('records_read')
+            feature_.pop('input_bytes/result_bytes')
+            feature_.pop('shuffle_read')
+            feature_.pop('bytes_per_records')
+            feature_.pop('remote_fetch')
+            feature_.pop('shuffle_write')
+            feature_.pop('write_bytes_per_record')
+            feature_.pop('write_bytes/read_bytes')
+            
             labels.append(label)
             row=[]
             for key in feature_:
