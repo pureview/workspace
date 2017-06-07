@@ -12,6 +12,7 @@ def build_tree(X,Y,feature_names,test_partion=0.2,dump='decision_tree.pdf'):
     clf.fit(trainX,trainY)
     # cal test accuracy
     predY=clf.predict(testX)
+
     count=0
     TP,TN,FP,FN=0,0,0,0
     for i in range(len(predY)):
@@ -27,6 +28,7 @@ def build_tree(X,Y,feature_names,test_partion=0.2,dump='decision_tree.pdf'):
     precision=TP/(TP+FP)
     recall=TP/(TP+FN)
     # draw decision tree
+    clf.get_params()
     dot_data=tree.export_graphviz(clf,out_file=None,feature_names=feature_names)
     graph=pydotplus.graph_from_dot_data(dot_data)
     graph.write_pdf(dump)

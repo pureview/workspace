@@ -1,0 +1,185 @@
+log analysis finished!
+	find 2239 tasks, 10 stages, application started at 1496026495645
+find 239 stragglers
+log analysis finished!
+	find 2111 tasks, 32 stages, application started at 1496114995436
+find 480 stragglers
+log analysis finished!
+	find 1157 tasks, 26 stages, application started at 1495962419705
+find 160 stragglers
+log analysis finished!
+	find 780 tasks, 13 stages, application started at 1495978658331
+find 360 stragglers
+log analysis finished!
+	find 1080 tasks, 13 stages, application started at 1496118646996
+find 160 stragglers
+log analysis finished!
+	find 1000 tasks, 13 stages, application started at 1496116654870
+find 0 stragglers
+log analysis finished!
+	find 780 tasks, 13 stages, application started at 1495878335532
+find 0 stragglers
+log analysis finished!
+	find 480 tasks, 3 stages, application started at 1496112733674
+find 100 stragglers
+log analysis finished!
+	find 478 tasks, 3 stages, application started at 1496109763269
+find 100 stragglers
+accuracy,precision,recall= 0.8485898070262247 0.0 0.0
+
+
+# cluster result width k=5, min_iner= 647.318814031
+center  0
+remote_fetch -> 0.00
+io -> 0.49
+shuffle_write -> -0.00
+memory_bytes_spilled -> 0.00
+task_type -> 1.00
+records_read -> -0.00
+bytes_per_record -> 0.00
+shuffle_records -> 0.16
+shuffle_write_records -> 0.00
+cpu -> 0.16
+input_bytes/result_bytes -> -0.00
+net -> 0.01
+remote_fetch_rate -> 0.00
+task_duration -> 0.02
+JVM_time -> 0.02
+shuffle_read -> 1.00
+shuffle_write_bytes -> 0.00
+write_bytes_per_record -> 0.00
+executor_run_ime -> 0.83
+data_read_method -> -0.00
+locality -> 0.99
+deserialize -> 0.09
+shuffle_read_bytes -> 0.24
+fetch_wait_time -> 0.00
+read_from_hdfs -> -0.00
+serialize -> 0.01
+write_bytes/read_bytes -> -0.00
+bytes_read -> 0.00
+disk_bytes_spilled -> 0.00
+
+center  1
+remote_fetch -> 0.00
+io -> 0.39
+shuffle_write -> 1.00
+memory_bytes_spilled -> 0.00
+task_type -> -0.00
+records_read -> -0.00
+bytes_per_record -> 0.43
+shuffle_records -> 0.07
+shuffle_write_records -> 0.90
+cpu -> 0.07
+input_bytes/result_bytes -> -0.00
+net -> 0.00
+remote_fetch_rate -> 0.00
+task_duration -> 0.01
+JVM_time -> 0.06
+shuffle_read -> 1.00
+shuffle_write_bytes -> 0.89
+write_bytes_per_record -> 0.31
+executor_run_ime -> 0.95
+data_read_method -> -0.00
+locality -> 1.00
+deserialize -> 0.03
+shuffle_read_bytes -> 0.11
+fetch_wait_time -> 0.00
+read_from_hdfs -> -0.00
+serialize -> 0.00
+write_bytes/read_bytes -> -0.00
+bytes_read -> 0.00
+disk_bytes_spilled -> 0.00
+
+center  2
+remote_fetch -> 0.00
+io -> 0.71
+shuffle_write -> -0.00
+memory_bytes_spilled -> 0.00
+task_type -> 1.00
+records_read -> 0.60
+bytes_per_record -> -0.00
+shuffle_records -> 0.00
+shuffle_write_records -> -0.00
+cpu -> 0.11
+input_bytes/result_bytes -> 0.80
+net -> 0.02
+remote_fetch_rate -> 0.00
+task_duration -> 0.17
+JVM_time -> 0.02
+shuffle_read -> -0.00
+shuffle_write_bytes -> -0.00
+write_bytes_per_record -> 0.00
+executor_run_ime -> 0.95
+data_read_method -> 1.00
+locality -> 0.92
+deserialize -> 0.05
+shuffle_read_bytes -> 0.00
+fetch_wait_time -> 0.00
+read_from_hdfs -> 1.00
+serialize -> 0.00
+write_bytes/read_bytes -> 0.00
+bytes_read -> 0.54
+disk_bytes_spilled -> 0.00
+
+center  3
+remote_fetch -> 0.00
+io -> 0.05
+shuffle_write -> 0.00
+memory_bytes_spilled -> 0.00
+task_type -> 1.00
+records_read -> 0.00
+bytes_per_record -> 0.00
+shuffle_records -> 0.01
+shuffle_write_records -> 0.00
+cpu -> 0.10
+input_bytes/result_bytes -> 0.00
+net -> 0.00
+remote_fetch_rate -> 0.00
+task_duration -> 0.00
+JVM_time -> 0.00
+shuffle_read -> 1.00
+shuffle_write_bytes -> 0.00
+write_bytes_per_record -> 0.00
+executor_run_ime -> 0.15
+data_read_method -> 0.00
+locality -> 0.50
+deserialize -> 0.20
+shuffle_read_bytes -> 0.01
+fetch_wait_time -> 0.00
+read_from_hdfs -> 0.00
+serialize -> 0.01
+write_bytes/read_bytes -> -0.00
+bytes_read -> 0.00
+disk_bytes_spilled -> 0.00
+
+center  4
+remote_fetch -> 0.00
+io -> 0.41
+shuffle_write -> 1.00
+memory_bytes_spilled -> 0.00
+task_type -> 0.00
+records_read -> 1.00
+bytes_per_record -> 0.00
+shuffle_records -> 0.04
+shuffle_write_records -> 0.99
+cpu -> 0.37
+input_bytes/result_bytes -> 1.00
+net -> 0.16
+remote_fetch_rate -> 0.00
+task_duration -> 0.02
+JVM_time -> 0.16
+shuffle_read -> 0.50
+shuffle_write_bytes -> 0.99
+write_bytes_per_record -> 0.22
+executor_run_ime -> 0.89
+data_read_method -> 0.50
+locality -> 0.72
+deserialize -> 0.10
+shuffle_read_bytes -> 0.06
+fetch_wait_time -> 0.00
+read_from_hdfs -> 1.00
+serialize -> 0.01
+write_bytes/read_bytes -> 0.47
+bytes_read -> 0.90
+disk_bytes_spilled -> 0.00
