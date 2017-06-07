@@ -4,6 +4,7 @@ import log_analysis.cluster_tool
 import matplotlib.pyplot as plt
 import log_analysis.plot_mat
 import log_analysis.decision_tree
+import sklearn
 '''
 @author: zhou honggang
 @diary:
@@ -17,6 +18,8 @@ import log_analysis.decision_tree
     3. set file name through configure
     4. let analysis start all over every time
     5. get all features together and deal them with decision tree
+    (2017/6/1)
+    1. use straggler features to cluster
 @bug:
     1. straggler对象应该是原始对象√
     2. node节点统计量错误
@@ -30,13 +33,6 @@ import log_analysis.decision_tree
     2.cpu使用率用mpstat的第二列数据，
       IO使用率用iostat最后一列数据，
       网络使用率用sar的（第三列加第四列）/1000
-@cluster:
-    (2017/5/25)
-    1. 分成3类
-     centers: [[  5.12499083e-01   9.76179435e-01   6.53056195e-04]
-        [  1.06931896e+00   1.01326743e+00   4.63918748e+00]
-        [  2.43434292e+00   1.05895691e+00   1.32923629e-03]]
-     inertia_: 1670.95733984
 '''
 # ============== CONFIGURE ==================
 DELAY=12
@@ -99,9 +95,11 @@ def load_dicts(dump_file_name='saved_raw_features'):
     #     with open(dump_file_name,'wb') as dump_file:
     #         pickle.dump((start_time_stamp,tasks,stages),dump_file)
     #     return start_time_stamp,tasks,stages
+
 def analysis_features(tasks,stages):
     def cal_stage_data_read(tasks,stages):
         for stage_id in stages.keys():
+            stages[stage_id]['task_duration_sum']=0
             stages[stage_id]['bytes_read']=0
             stages[stage_id]['records_read']=0
             stages[stage_id]['shuffle_read']=0
@@ -119,6 +117,7 @@ def analysis_features(tasks,stages):
             task=tasks[task_id]
             # get task ids of one stage
             stages[task['Stage ID']]['tasks'].append(task_id)
+            stages[task['Stage ID']]['task_duration_sum']+=task['Task Info']['Finish Time']-task['Task Info']['Launch Time']
             if 'Input Metrics' in task['Task Metrics'].keys():
                 stages[task['Stage ID']]['bytes_read']+=task['Task Metrics']['Input Metrics']['Bytes Read']
                 stages[task['Stage ID']]['records_read']+=task['Task Metrics']['Input Metrics']['Records Read']
@@ -135,15 +134,15 @@ def analysis_features(tasks,stages):
                 stages[task['Stage ID']]['records_wrote']+=task['Task Metrics']['Shuffle Write Metrics']['Shuffle Records Written']
                 stages[task['Stage ID']]['write_bytes_per_record_sum'] += task['Task Metrics']['Shuffle Write Metrics']['Shuffle Bytes Written'] / \
                                                                     task['Task Metrics']['Shuffle Write Metrics']['Shuffle Records Written']
-    def find_straggler(tasks,stages,features,threshold=0.7):
+    def find_straggler(tasks,stages,features,threshold=1.5):
         # straggler->task_duration/stage_duration>threshold
         stragglers={}
         for stage_id in stages:
             stage=stages[stage_id]
-            stage_duration=stage['duration']
+            stage_avg_duration=stage['task_duration_sum']/len(stage['tasks'])
             for task_id in stage['tasks']:
                 task_duration=task['Task Info']['Finish Time']-task['Task Info']['Launch Time']
-                if task_duration/stage_duration>=threshold:
+                if task_duration/stage_avg_duration>=threshold:
                     stragglers[task_id]=tasks[task_id]
                     features[task_id]['straggler']=1
         print('find %d stragglers'%(len(stragglers)))
@@ -187,7 +186,6 @@ def analysis_features(tasks,stages):
         feature['memory_bytes_spilled']=0
         feature['disk_bytes_spilled'] = 0
         feature['locality']=0
-
     def value2bit(value,border=1):
         if value>border:
             return 1
@@ -471,24 +469,35 @@ def visualize(features):
             print(k, '->', v)
         break
 
-def regulize(mat,thresh=0.002):
+def regulize(mat):
     # WARN: mat is a 2-d list
+    ''' make every feature value between 0 and 1    
+    :param mat: input matrix of [row,feature] 
+    '''
     row_num=len(mat)
     col_num=len(mat[0])
-    sum_list=[0]*col_num
+    min_list=[0]*col_num
+    max_list=[0]*col_num
+    flag=True
     for row in mat:
         for i in range(col_num):
-            sum_list[i]+=row[i]/row_num
+            if flag:
+                min_list[i]=row[i]
+                max_list[i]=row[i]
+            else:
+                if row[i]<min_list[i]:
+                    min_list[i]=row[i]
+                if row[i]>max_list[i]:
+                    max_list[i]=row[i]
+        flag=False
+
     for i in range(row_num):
         for j in range(col_num):
-            # if mat[i][j]>thresh*row_num*sum_list[j]:
-            #     print('weired! ',j,mat[i][j])
-            mat[i][j]/=sum_list[j]
-
-def clean(features_val):
-    if feature_values==[0,1]:
-        # binary data
-        pass
+            try:
+                mat[i][j]=(mat[i][j]-min_list[j])/(max_list[j]-min_list[j])
+            except:
+                #print('column zero! column id=',j,'mat[i][j]=',mat[i][j])
+                mat[i][j]=0
 
 if __name__ == '__main__':
     # this step save cal time but hurt debug
@@ -516,9 +525,11 @@ if __name__ == '__main__':
         wraper(tasks, start_time, features)
         # get straggler hardware features
         # ----------------- Here features include everything ----------------------
+        # @modify: stragglers -> features
         for task_id in features:
-            feature_=features[task_id].copy()
+            feature_=features[task_id]
             label=feature_.pop('straggler')
+
         # ----------------- Remove some features for test data 6.1 ----------------    
             feature_.pop('node_id')
             feature_.pop('task_type')
@@ -532,7 +543,7 @@ if __name__ == '__main__':
             feature_.pop('shuffle_write')
             feature_.pop('write_bytes_per_record')
             feature_.pop('write_bytes/read_bytes')
-            
+
             labels.append(label)
             row=[]
             for key in feature_:
