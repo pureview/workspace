@@ -1,5 +1,6 @@
 from sklearn import tree
 import pydotplus
+import pickle
 
 def build_tree(X,Y,feature_names,test_partion=0.2,dump='decision_tree.pdf'):
     assert len(X)==len(Y)
@@ -8,6 +9,17 @@ def build_tree(X,Y,feature_names,test_partion=0.2,dump='decision_tree.pdf'):
     trainY=Y[0:border]
     testX=X[border:]
     testY=Y[border:]
+    # write key-value pair into disk
+    dataset=[]
+    dataset_name='dataset.dat'
+    for i in range(len(testX)):
+        sample={}
+        for j in range(len(feature_names)):
+            sample[feature_names[j]]=testX[i][j]
+        sample['label']=testY[i]
+        dataset.append(sample)
+    pickle.dump(dataset,open(dataset_name,'wb'))
+    print('already dump dataset to',dataset_name)
     clf=tree.DecisionTreeClassifier()
     clf.fit(trainX,trainY)
     # cal test accuracy
@@ -29,5 +41,5 @@ def build_tree(X,Y,feature_names,test_partion=0.2,dump='decision_tree.pdf'):
     # draw decision tree
     dot_data=tree.export_graphviz(clf,out_file=None,feature_names=feature_names)
     graph=pydotplus.graph_from_dot_data(dot_data)
-    graph.write_pdf(dump)
+    #graph.write_pdf(dump)
     return accuracy,precision,recall
