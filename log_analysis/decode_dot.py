@@ -208,7 +208,6 @@ def export(tree):
         # traversal another
         first_order_traversal(node.left_child)
         first_order_traversal(node.right_child)
-
     global out,i
     first_order_traversal(tree)
     out+='\n}'
@@ -222,7 +221,8 @@ def mypruning_traversal(node,sample=None,gini=None):
             # pruning current node
             left=node.left_child
             right=node.right_child
-            if left.samples<=sample and right.samples<=sample:
+            #if left.samples<=sample and right.samples<=sample:
+            if left.value[1]<=sample and right.value[1]<=sample:
                 node.left_child=None
                 node.right_child=None
                 del left,right
