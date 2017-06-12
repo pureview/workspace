@@ -30,7 +30,7 @@ class Node:
         self.parent=None
 
     def __str__(self):
-        return 'name = '+self.name+' gini = '+str(self.gini)+ ' samples = '+\
+        return ' gini = '+str(self.gini)+ ' samples = '+\
                str(self.samples)+' values = '+str(self.value)
 
 def decode(filename='tree.dot'):
@@ -54,13 +54,15 @@ def decode(filename='tree.dot'):
 def inference(tree,sample):
     '''
     Inference label for a sample
-    :param tree: root Node object
-    :param sample: name-value pair 
-    :return label: predict label 
+    Args： 
+        tree: root Node object
+        sample: name-value pair 
+    return：
+        label: predict label 
     '''
     node=tree
     while True:
-        if node.name==None:
+        if node.left_child==None and node.right_child==None:
             value=node.value
             if value[0]>value[1]:
                 return 0
@@ -82,6 +84,58 @@ def get_dataset(filename='dataset.dat'):
     handle.close()
     return dataset
 
+def post_order_traversal(node,dataset,acc):
+    left_acc,right_acc=0,0
+    flag_left=flag_right=False
+    if node.left_child!=None:
+        flag_left,left_acc=post_order_traversal(node.left_child,dataset,acc)
+    if node.right_child!=None:
+        flag_right,right_acc=post_order_traversal(node.right_child,dataset,acc)
+    else:
+        # this is the leaf node
+        pruned_acc=pruning(node,dataset,acc)
+        if pruned_acc>acc:
+            return True,pruned_acc
+    if flag_left or flag_right:
+        pruned_acc=pruning(node,dataset,max(left_acc,right_acc))
+        if pruned_acc>acc:
+            return True,pruned_acc
+    return False,acc
+
+# Reduced-Error pruning
+def pruning(node,dataset,acc):
+    def find_root(node):
+        temp=node
+        while temp.parent!=None:
+            temp=temp.parent
+        return temp
+    assert node!=None
+    parent=node.parent
+    reconstruct=''
+    if parent.left_child==node:
+        reconstruct='left'
+        parent.left_child=None
+    elif parent.right_child==node:
+        reconstruct='right'
+        parent.right_child=None
+    else:
+        assert False,str(parent)+'\t'+str(node)
+    root=find_root(parent)
+    true_count=0
+    for data in dataset:
+        label=inference(root,data)
+        if data['label']==label:
+            true_count+=1
+    pruned_acc=true_count/num
+    if pruned_acc>acc:
+        return pruned_acc
+    # reconstruct the tree
+    if reconstruct=='left':
+        parent.left_child=node
+    else:
+        parent.right_child=node
+    return acc
+
 if __name__ == '__main__':
     tree=decode()
     dataset=get_dataset()
@@ -91,4 +145,6 @@ if __name__ == '__main__':
         label=inference(tree,data)
         if data['label']==label:
             true_count+=1
-    print('acc=',true_count/num)
+    acc=true_count/num
+    best_acc=post_order_traversal(tree,dataset,acc)
+    print('acc=',acc,'best_acc=',best_acc)
